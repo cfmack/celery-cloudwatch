@@ -12,7 +12,7 @@ class State(object):
 
     # http://docs.celeryproject.org/en/latest/userguide/monitoring.html
 
-    def __init__(self):
+    def __init__(self, config):
         self._mutex = threading.Lock()
 
         # track the number of events in the current window
@@ -24,6 +24,7 @@ class State(object):
         self.time_to_start = defaultdict(Stats)
 
         self.time_to_process = defaultdict(Stats)
+        self.config = config
 
         self.registry = {}
 
@@ -67,41 +68,51 @@ class State(object):
 
     def task_sent(self, event):
         with self._mutex:
-            uuid = event['uuid']
-            if uuid not in self.registry:
+            self._initiate_task(event)
+
+    def _initiate_task(self, event):
+        uuid = event['uuid']
+        if uuid not in self.registry:
+            if 'name' in event:
                 task_name = event['name']
-                self.registry[uuid] = TaskRecord(task_name, event['timestamp'], None, None, None)
-                self.task_event_sent[task_name] += 1
-                return
-
-            task_record = self.registry[uuid]._replace(
-                name=event['name'],
-                sent_at=event['timestamp']
-            )
-            self.registry[uuid] = task_record
-            self.task_event_sent[task_record.name] += 1
-
-            if task_record.started_at is None:
-                return
-
-            self.task_event_started[task_record.name] += 1
-            self.time_to_start[task_record.name] += task_record.wait_duration
-            if not task_record.finished:
-                return
-            del self.registry[uuid]
-            if task_record.successful:
-                self.task_event_succeeded[task_record.name] += 1
-                self.time_to_process[task_record.name] += task_record.processing_duration
             else:
-                self.task_event_failed[task_record.name] += 1
+                if 'task-prefix' in self.config['ccwatch'] and self.config['ccwatch']['task-prefix']:
+                    task_name = "{}-{}".format(self.config['ccwatch']['task-prefix'], uuid)
+                else:
+                    task_name = uuid
+
+            self.registry[uuid] = TaskRecord(task_name, event['timestamp'], None, None, None)
+            self.task_event_sent[task_name] += 1
+            return
+
+        task_record = self.registry[uuid]._replace(
+            name=event['name'],
+            sent_at=event['timestamp']
+        )
+        self.registry[uuid] = task_record
+        self.task_event_sent[task_record.name] += 1
+
+        if task_record.started_at is None:
+            return
+
+        self.task_event_started[task_record.name] += 1
+        self.time_to_start[task_record.name] += task_record.wait_duration
+        if not task_record.finished:
+            return
+        del self.registry[uuid]
+        if task_record.successful:
+            self.task_event_succeeded[task_record.name] += 1
+            self.time_to_process[task_record.name] += task_record.processing_duration
+        else:
+            self.task_event_failed[task_record.name] += 1
 
     def task_started(self, event):
         with self._mutex:
             uuid = event['uuid']
             task_record = self.registry.get(uuid, None)
             if task_record is None:
-                self.registry[uuid] = TaskRecord(None, None, event['timestamp'], None, None)
-                return
+                self._initiate_task(event)
+                task_record = self.registry.get(uuid, None)
 
             task_record = task_record._replace(started_at=event['timestamp'])
             self.registry[uuid] = task_record
@@ -191,6 +202,9 @@ class TaskRecord(tuple):
     def __getnewargs__(self):
         'Return self as a plain tuple.  Used by copy and pickle.'
         return tuple(self)
+
+    def print(self):
+        print("TaskRecord: {} - {} - {} - {} - {}".format(self.name, self.sent_at, self.started_at, self.succeeded_at, self.failed_at))
 
     name = _property(_itemgetter(0), doc='Alias for field number 0')
 

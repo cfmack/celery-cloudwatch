@@ -14,7 +14,8 @@ config_schema = v.Schema({
     v.Optional('ccwatch', default={}): v.Schema({
         v.Optional('broker', default=None): v.Any(None, v_str),
         v.Optional('camera', default="celery_cloudwatch.CloudWatchCamera"): v_str,
-        v.Optional('verbose', default=False): bool
+        v.Optional('verbose', default=False): bool,
+        v.Optional('task-prefix', default=None): v.Any(None, v_str),
     }, extra=False),
     v.Optional('camera', default={}): v.Schema({
         v.Optional('frequency', default=60.0): v.Any(int, float),
@@ -23,6 +24,7 @@ config_schema = v.Schema({
     v.Optional('cloudwatch-camera', default={}): v.Schema({
         v.Optional('dryrun', default=False): bool,
         v.Optional('namespace', default='celery'): v_str,
+        v.Optional('metrics', default=[]): [v_str],
         v.Optional('tasks', default=[]): v.Schema([
             v_str, v.Schema({
                 'name': v_str,

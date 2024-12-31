@@ -21,7 +21,7 @@ class TaskMonitor(object):
 
     def run(self):
         app = Celery(broker=self.broker)
-        state = State()
+        state = State(self.config)
 
         factory = CameraFactory(self.camera)
         camera = factory.camera(state, self.config)

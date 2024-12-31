@@ -2,12 +2,22 @@ ccwatch:
   broker: null
   camera: celery_cloudwatch.CloudWatchCamera
   verbose: no
+  task-prefix: myprefix
 camera:
   frequency: 60.0
   verbose: no
 cloudwatch-camera:
   dryrun: no
   namespace: celery
+  metrics:
+    - CeleryEventSent
+    - CeleryEventStarted
+    - CeleryEventSucceeded
+    - CeleryEventFailed
+    - CeleryNumWaiting
+    - CeleryNumRunning
+    - CeleryWaitingTime
+    - CeleryProcessingTime
   tasks:
     - myapp.mytasks.taskname
     - myapp.mytasks.anothertask
